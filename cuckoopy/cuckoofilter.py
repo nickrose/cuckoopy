@@ -17,7 +17,7 @@ class CuckooFilter(object):
     """
 
     def __init__(self, capacity, bucket_size=4, fingerprint_size=1,
-                 max_displacements=500):
+                 max_displacements=500, has_values=False):
         """
         Initialize CuckooFilter object.
 
@@ -31,14 +31,16 @@ class CuckooFilter(object):
         self.bucket_size = bucket_size
         self.fingerprint_size = fingerprint_size
         self.max_displacements = max_displacements
-        self.buckets = [bucket.Bucket(size=bucket_size)
+        self.has_values = has_values
+        self.buckets = [bucket.Bucket(size=bucket_size, has_values=has_values)
                         for _ in range(self.capacity)]
         self.size = 0
 
     def __repr__(self):
         return '<CuckooFilter: capacity=' + str(self.capacity) + \
                ', size=' + str(self.size) + ', fingerprint size=' + \
-               str(self.fingerprint_size) + ' byte(s)>'
+               str(self.fingerprint_size) + ' byte(s), values stored: ' + \
+               str(self.has_values) + '>'
 
     def __len__(self):
         return self.size
@@ -54,7 +56,7 @@ class CuckooFilter(object):
         alt_index = (index ^ hashutils.hash_code(fingerprint)) % self.capacity
         return alt_index
 
-    def insert(self, item):
+    def insert(self, item, value=None):
         """
         Insert an item into the filter.
 
@@ -66,18 +68,32 @@ class CuckooFilter(object):
         i = self._get_index(item)
         j = self._get_alternate_index(i, fingerprint)
 
-        if self.buckets[i].insert(fingerprint) \
-                or self.buckets[j].insert(fingerprint):
-            self.size += 1
-            return True
-
-        eviction_index = random.choice([i, j])
-        for _ in range(self.max_displacements):
-            f = self.buckets[eviction_index].swap(fingerprint)
-            eviction_index = self._get_alternate_index(eviction_index, f)
-            if self.buckets[eviction_index].insert(f):
+        if self.has_values:
+            if self.buckets[i].insert(fingerprint, value) \
+                    or self.buckets[j].insert(fingerprint, value):
                 self.size += 1
                 return True
+
+            eviction_index = random.choice([i, j])
+            for _ in range(self.max_displacements):
+                f, v = self.buckets[eviction_index].swap(fingerprint, value)
+                eviction_index = self._get_alternate_index(eviction_index, f)
+                if self.buckets[eviction_index].insert(f, v):
+                    self.size += 1
+                    return True
+        else:
+            if self.buckets[i].insert(fingerprint) \
+                    or self.buckets[j].insert(fingerprint):
+                self.size += 1
+                return True
+            eviction_index = random.choice([i, j])
+            for _ in range(self.max_displacements):
+                f = self.buckets[eviction_index].swap(fingerprint)
+                eviction_index = self._get_alternate_index(eviction_index, f)
+                if self.buckets[eviction_index].insert(f):
+                    self.size += 1
+                    return True
+
         # Filter is full
         raise exceptions.CuckooFilterFullException('Insert operation failed. '
                                                    'Filter is full.')
@@ -93,7 +109,8 @@ class CuckooFilter(object):
         i = self._get_index(item)
         j = self._get_alternate_index(i, fingerprint)
 
-        return fingerprint in self.buckets[i] or fingerprint in self.buckets[j]
+        return (fingerprint in self.buckets[i]) or (
+            fingerprint in self.buckets[j])
 
     def delete(self, item):
         """
