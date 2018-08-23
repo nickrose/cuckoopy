@@ -3,8 +3,9 @@ import random
 
 class Bucket(object):
 
-    def __init__(self, size=4, has_values=False):
+    def __init__(self, size=4, has_values=False, dtype=str):
         self.size = size
+        self.dtype = dtype
         self.has_values = has_values
         if has_values:
             self.bucket = {}

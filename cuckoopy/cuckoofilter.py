@@ -3,7 +3,7 @@ Cuckoo Filter
 """
 
 import random
-
+import numpy as np
 from . import bucket
 from . import exceptions
 from . import hashutils
@@ -17,7 +17,7 @@ class CuckooFilter(object):
     """
 
     def __init__(self, capacity, bucket_size=4, fingerprint_size=1,
-                 max_displacements=500, has_values=False):
+                 max_displacements=500, has_values=False, dtype=str):
         """
         Initialize CuckooFilter object.
 
@@ -27,6 +27,9 @@ class CuckooFilter(object):
         :param max_displacements: Maximum number of evictions before filter is
         considered full
         """
+        assert dtype in hashutils.acceptable_dtypes, (
+            f'dtype input must be one of {hashutils.acceptable_dtypes}')
+        self.dtype = dtype
         self.capacity = capacity
         self.bucket_size = bucket_size
         self.fingerprint_size = fingerprint_size
