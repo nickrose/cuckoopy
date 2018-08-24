@@ -17,7 +17,8 @@ class CuckooFilter(object):
     """
 
     def __init__(self, capacity, bucket_size=4, fingerprint_size=1,
-                 max_displacements=500, has_values=False, dtype=str):
+                 max_displacements=500, dtype=str, has_values=False,
+                 has_unique_values=False, debug=0):
         """
         Initialize CuckooFilter object.
 
@@ -29,14 +30,18 @@ class CuckooFilter(object):
         """
         assert dtype in hashutils.acceptable_dtypes, (
             f'dtype input must be one of {hashutils.acceptable_dtypes}')
+        self.debug = debug
         self.dtype = dtype
         self.capacity = capacity
         self.bucket_size = bucket_size
         self.fingerprint_size = fingerprint_size
         self.max_displacements = max_displacements
         self.has_values = has_values
-        self.buckets = [bucket.Bucket(size=bucket_size, has_values=has_values)
-                        for _ in range(self.capacity)]
+        self.has_unique_values = has_unique_values
+        self.buckets = [bucket.Bucket(
+            size=bucket_size, has_values=has_values,
+            has_unique_values=has_unique_values)
+            for _ in range(self.capacity)]
         self.size = 0
 
     def __repr__(self):
@@ -50,6 +55,18 @@ class CuckooFilter(object):
 
     def __contains__(self, item):
         return self.contains(item)
+
+    def __setitem__(self, key, value):
+        assert (self.has_values or self.has_unique_values), (
+            "dict-like __setitem__() cannot be called unless has_values or "
+            "has_unique_values is True")
+        return self.insert(key, value)
+
+    def __getitem__(self, item):
+        return self.getitem(item)
+
+    def __delete__(self, item):
+        return self.delete(item)
 
     def _get_index(self, item):
         index = hashutils.hash_code(item) % self.capacity
@@ -71,7 +88,7 @@ class CuckooFilter(object):
         i = self._get_index(item)
         j = self._get_alternate_index(i, fingerprint)
 
-        if self.has_values:
+        if self.has_values or self.has_unique_values:
             if self.buckets[i].insert(fingerprint, value) \
                     or self.buckets[j].insert(fingerprint, value):
                 self.size += 1
@@ -108,12 +125,29 @@ class CuckooFilter(object):
         :param item: Item to check its presence in the filter.
         :return: True, if item is in the filter; False, otherwise.
         """
-        fingerprint = hashutils.fingerprint(item, self.fingerprint_size)
+        fingerprint = hashutils.fingerprint(item, size=self.fingerprint_size)
         i = self._get_index(item)
         j = self._get_alternate_index(i, fingerprint)
 
         return (fingerprint in self.buckets[i]) or (
             fingerprint in self.buckets[j])
+
+    def getitem(self, item):
+        """ return the item specified by the input (un-hashed) item id """
+        if not(self.has_values or self.has_unique_values):
+            return None
+        fingerprint = hashutils.fingerprint(item, size=self.fingerprint_size)
+
+        i = self._get_index(item)
+        j = self._get_alternate_index(i, fingerprint)
+        if self.debug:
+            print(f'get() item: {item}, fingerprint: {fingerprint}, '
+                  f'bucket[i]: {i}, bucket[j]: {j}')
+        values = self.buckets[i][fingerprint]
+        if len(values):
+            return values
+        else:
+            return self.buckets[j][fingerprint]
 
     def delete(self, item):
         """
@@ -128,9 +162,12 @@ class CuckooFilter(object):
         """
         fingerprint = hashutils.fingerprint(item, size=self.fingerprint_size)
         i = self._get_index(item)
-        j = self._get_alternate_index(i, fingerprint)
-        if self.buckets[i].delete(fingerprint) \
-                or self.buckets[j].delete(fingerprint):
+        if self.buckets[i].delete(fingerprint):
             self.size -= 1
             return True
+        else:
+            j = self._get_alternate_index(i, fingerprint)
+            if self.buckets[j].delete(fingerprint):
+                self.size -= 1
+                return True
         return False
