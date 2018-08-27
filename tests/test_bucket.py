@@ -21,7 +21,7 @@ def test_insert_bucket_full(bucket):
 def test_bucket_full(bucket):
     for i in range(bucket.size):
         bucket.insert('fake_value')
-    assert bucket.is_full()
+    assert bucket.is_full
 
 
 def test_bucket_delete(bucket):

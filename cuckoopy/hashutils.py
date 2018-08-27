@@ -4,8 +4,6 @@ Hash utilities for cuckoo filters to generate fingerprints.
 Generate FNV64 hash based on http://isthe.com/chongo/tech/comp/fnv/
 """
 import numpy as np
-import xxhash
-from tqdm import tqdm
 
 FNV64_OFFSET_BASIS = 0xcbf29ce484222325
 FNV64_PRIME = 0x100000001b3
@@ -28,6 +26,7 @@ def _fnv64(data):
     if isinstance(data, str):
         # print('used .encode()')
         encoded = data.encode()
+        # print('in _fnv64(): ', encoded)
     elif type(data).__module__ == np.__name__:
         # print('used .tobytes()')
         encoded = data.data.tobytes()
@@ -61,6 +60,7 @@ def fingerprint(data, size):
     :return: fingerprint of 'size' bytes
     """
     fp = _int_to_bytes(_fnv64(data))
+    # print('in fingerprint(): ', fp)
     return _bytes_to_int(fp[:size])
 
 
