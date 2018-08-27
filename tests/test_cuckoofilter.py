@@ -43,8 +43,18 @@ def test_insert_filter_full(cuckoo_filter):
     fake_value = 'fake_value'
     for _ in range(2 * cuckoo_filter.bucket_size):
         cuckoo_filter.insert(fake_value)
-    with pytest.raises(CuckooFilterFullException):
+    inserted_wrongfully = False
+    try:
         cuckoo_filter.insert(fake_value)
+        inserted_wrongfully = True
+    except CuckooFilterFullException as e:
+        inserted_wrongfully = not(isinstance(e, CuckooFilterFullException))
+    assert not(inserted_wrongfully), (
+        'adding additional value past the bucket size should illicite '
+        f'a {CuckooFilterFullException.__name__} exception')
+    # NOTE: for some reason, the below pytest catch exception isn't working
+    # with pytest.raises(CuckooFilterFullException):
+    #     cuckoo_filter.insert(fake_value)
 
 
 @pytest.mark.skipif(not os.path.isfile('/usr/share/dict/words'),
